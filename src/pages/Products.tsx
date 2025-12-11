@@ -1,0 +1,206 @@
+import { useState, useEffect, useMemo } from 'react';
+import { MainLayout } from '@/components/layout/MainLayout';
+import { ProductCard } from '@/components/products/ProductCard';
+import { ProductForm } from '@/components/products/ProductForm';
+import { Product, CATEGORIES, Category } from '@/types/inventory';
+import { getProducts, addProduct, updateProduct, deleteProduct } from '@/lib/storage';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Plus, Search, Package } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+
+const Products = () => {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [stockFilter, setStockFilter] = useState<string>('all');
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  useEffect(() => {
+    setProducts(getProducts());
+  }, []);
+
+  const filteredProducts = useMemo(() => {
+    return products.filter(product => {
+      const matchesSearch = 
+        product.name.toLowerCase().includes(search.toLowerCase()) ||
+        product.supplier.toLowerCase().includes(search.toLowerCase()) ||
+        (product.serialNumber?.toLowerCase().includes(search.toLowerCase()));
+      
+      const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
+      
+      let matchesStock = true;
+      if (stockFilter === 'low') {
+        matchesStock = product.quantity <= product.minStockLevel && product.quantity > 0;
+      } else if (stockFilter === 'out') {
+        matchesStock = product.quantity === 0;
+      } else if (stockFilter === 'available') {
+        matchesStock = product.quantity > product.minStockLevel;
+      }
+
+      return matchesSearch && matchesCategory && matchesStock;
+    });
+  }, [products, search, categoryFilter, stockFilter]);
+
+  const handleSaveProduct = (productData: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => {
+    if (editingProduct) {
+      updateProduct(editingProduct.id, productData);
+      toast({
+        title: 'Product Updated',
+        description: `${productData.name} has been updated successfully.`,
+      });
+    } else {
+      addProduct(productData);
+      toast({
+        title: 'Product Added',
+        description: `${productData.name} has been added to inventory.`,
+      });
+    }
+    setProducts(getProducts());
+    setEditingProduct(null);
+  };
+
+  const handleEdit = (product: Product) => {
+    setEditingProduct(product);
+    setFormOpen(true);
+  };
+
+  const handleDelete = (id: string) => {
+    deleteProduct(id);
+    setProducts(getProducts());
+    setDeleteConfirm(null);
+    toast({
+      title: 'Product Deleted',
+      description: 'The product has been removed from inventory.',
+    });
+  };
+
+  return (
+    <MainLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-12 lg:pt-0">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Products</h1>
+            <p className="text-muted-foreground">Manage your inventory items</p>
+          </div>
+          <Button onClick={() => { setEditingProduct(null); setFormOpen(true); }} className="gap-2">
+            <Plus className="w-4 h-4" />
+            Add Product
+          </Button>
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search products, suppliers, serial numbers..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {CATEGORIES.map((cat) => (
+                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={stockFilter} onValueChange={setStockFilter}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <SelectValue placeholder="Stock Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Stock</SelectItem>
+              <SelectItem value="available">In Stock</SelectItem>
+              <SelectItem value="low">Low Stock</SelectItem>
+              <SelectItem value="out">Out of Stock</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Products Grid */}
+        {filteredProducts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+              <Package className="w-8 h-8 text-muted-foreground" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">No products found</h3>
+            <p className="text-muted-foreground max-w-sm">
+              {search || categoryFilter !== 'all' || stockFilter !== 'all'
+                ? 'Try adjusting your filters to find what you\'re looking for.'
+                : 'Get started by adding your first product to the inventory.'}
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {filteredProducts.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                onEdit={handleEdit}
+                onDelete={(id) => setDeleteConfirm(id)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Product Form Modal */}
+        <ProductForm
+          open={formOpen}
+          onClose={() => { setFormOpen(false); setEditingProduct(null); }}
+          onSave={handleSaveProduct}
+          product={editingProduct}
+        />
+
+        {/* Delete Confirmation */}
+        <AlertDialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Product</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this product? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deleteConfirm && handleDelete(deleteConfirm)}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </MainLayout>
+  );
+};
+
+export default Products;

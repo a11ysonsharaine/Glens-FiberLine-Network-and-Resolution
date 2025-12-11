@@ -1,0 +1,183 @@
+import { useState, useEffect, useMemo } from 'react';
+import { MainLayout } from '@/components/layout/MainLayout';
+import { SaleForm } from '@/components/sales/SaleForm';
+import { Sale, Product } from '@/types/inventory';
+import { getSales, getProducts, addSale } from '@/lib/storage';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Plus, Search, ShoppingCart, Receipt } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
+
+const Sales = () => {
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [search, setSearch] = useState('');
+  const [formOpen, setFormOpen] = useState(false);
+
+  useEffect(() => {
+    setSales(getSales());
+    setProducts(getProducts());
+  }, []);
+
+  const filteredSales = useMemo(() => {
+    return sales.filter(sale =>
+      sale.productName.toLowerCase().includes(search.toLowerCase()) ||
+      sale.customerName?.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [sales, search]);
+
+  const handleAddSale = (saleData: { productId: string; productName: string; quantity: number; unitPrice: number; totalAmount: number; customerName?: string }) => {
+    const result = addSale(saleData);
+    if (result) {
+      setSales(getSales());
+      setProducts(getProducts());
+      toast({
+        title: 'Sale Recorded',
+        description: `Sale of ${saleData.quantity}x ${saleData.productName} for $${saleData.totalAmount.toFixed(2)}`,
+      });
+    } else {
+      toast({
+        title: 'Sale Failed',
+        description: 'Unable to process sale. Check stock availability.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const todaySales = sales.filter(s => {
+    const today = new Date();
+    const saleDate = new Date(s.createdAt);
+    return saleDate.toDateString() === today.toDateString();
+  });
+
+  const todayTotal = todaySales.reduce((sum, s) => sum + s.totalAmount, 0);
+  const todayTransactions = todaySales.length;
+
+  return (
+    <MainLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-12 lg:pt-0">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Sales</h1>
+            <p className="text-muted-foreground">Record and track all sales transactions</p>
+          </div>
+          <Button onClick={() => setFormOpen(true)} className="gap-2">
+            <Plus className="w-4 h-4" />
+            New Sale
+          </Button>
+        </div>
+
+        {/* Today's Summary */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-2xl border bg-card p-6 flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-success/20">
+              <ShoppingCart className="w-6 h-6 text-success" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Today's Revenue</p>
+              <p className="text-2xl font-bold">${todayTotal.toFixed(2)}</p>
+            </div>
+          </div>
+          <div className="rounded-2xl border bg-card p-6 flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-primary/20">
+              <Receipt className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Today's Transactions</p>
+              <p className="text-2xl font-bold">{todayTransactions}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Search */}
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search sales by product or customer..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+
+        {/* Sales Table */}
+        {filteredSales.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+              <ShoppingCart className="w-8 h-8 text-muted-foreground" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">No sales found</h3>
+            <p className="text-muted-foreground max-w-sm">
+              {search
+                ? 'Try adjusting your search to find what you\'re looking for.'
+                : 'Start recording sales to see them here.'}
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-2xl border bg-card overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead>Date & Time</TableHead>
+                  <TableHead>Product</TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead className="text-center">Qty</TableHead>
+                  <TableHead className="text-right">Unit Price</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredSales.map((sale) => (
+                  <TableRow key={sale.id} className="hover:bg-muted/30">
+                    <TableCell className="font-medium">
+                      <div>
+                        <p className="text-sm">{format(new Date(sale.createdAt), 'MMM d, yyyy')}</p>
+                        <p className="text-xs text-muted-foreground">{format(new Date(sale.createdAt), 'h:mm a')}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <p className="font-medium">{sale.productName}</p>
+                    </TableCell>
+                    <TableCell>
+                      {sale.customerName ? (
+                        <span>{sale.customerName}</span>
+                      ) : (
+                        <Badge variant="secondary" className="text-xs">Walk-in</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">{sale.quantity}</TableCell>
+                    <TableCell className="text-right">${sale.unitPrice.toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-semibold text-success">
+                      ${sale.totalAmount.toFixed(2)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {/* Sale Form Modal */}
+        <SaleForm
+          open={formOpen}
+          onClose={() => setFormOpen(false)}
+          onSave={handleAddSale}
+          products={products}
+        />
+      </div>
+    </MainLayout>
+  );
+};
+
+export default Sales;

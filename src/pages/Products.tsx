@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { ProductForm } from '@/components/products/ProductForm';
 import { Product, CATEGORIES, Category } from '@/types/inventory';
-import { getProducts, addProduct, updateProduct, deleteProduct } from '@/lib/storage';
+import { getProducts, addProduct, updateProduct, deleteProduct } from '@/modules/storage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -44,7 +44,12 @@ const Products = () => {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   useEffect(() => {
-    setProducts(getProducts());
+    let mounted = true;
+    (async () => {
+      const prods = await getProducts();
+      if (mounted) setProducts(prods);
+    })();
+    return () => { mounted = false; };
   }, []);
 
   const filteredProducts = useMemo(() => {
@@ -69,22 +74,31 @@ const Products = () => {
     });
   }, [products, search, categoryFilter, stockFilter]);
 
-  const handleSaveProduct = (productData: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => {
-    if (editingProduct) {
-      updateProduct(editingProduct.id, productData);
+  const handleSaveProduct = async (productData: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try {
+      if (editingProduct) {
+        await updateProduct(editingProduct.id, productData);
+        toast({
+          title: 'Product Updated',
+          description: `${productData.name} has been updated successfully.`,
+        });
+      } else {
+        await addProduct(productData);
+        toast({
+          title: 'Product Added',
+          description: `${productData.name} has been added to inventory.`,
+        });
+      }
+      setProducts(await getProducts());
+      setEditingProduct(null);
+    } catch (err: any) {
+      console.error('Failed to save product', err);
       toast({
-        title: 'Product Updated',
-        description: `${productData.name} has been updated successfully.`,
-      });
-    } else {
-      addProduct(productData);
-      toast({
-        title: 'Product Added',
-        description: `${productData.name} has been added to inventory.`,
+        title: 'Save failed',
+        description: err?.message ?? String(err),
+        // Optionally mark as destructive if your toast supports variants
       });
     }
-    setProducts(getProducts());
-    setEditingProduct(null);
   };
 
   const handleEdit = (product: Product) => {
@@ -92,9 +106,9 @@ const Products = () => {
     setFormOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    deleteProduct(id);
-    setProducts(getProducts());
+  const handleDelete = async (id: string) => {
+    await deleteProduct(id);
+    setProducts(await getProducts());
     setDeleteConfirm(null);
     toast({
       title: 'Product Deleted',
@@ -134,9 +148,13 @@ const Products = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Categories</SelectItem>
-              {CATEGORIES.map((cat) => (
-                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-              ))}
+              {CATEGORIES.length === 0 ? (
+                <SelectItem value="none" disabled>— no categories —</SelectItem>
+              ) : (
+                CATEGORIES.map((cat) => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))
+              )}
             </SelectContent>
           </Select>
           <Select value={stockFilter} onValueChange={setStockFilter}>
@@ -190,8 +208,8 @@ const Products = () => {
                       <TableCell className="font-medium">{product.name}</TableCell>
                       <TableCell>{product.category}</TableCell>
                       <TableCell className="text-right">{product.quantity}</TableCell>
-                      <TableCell className="text-right">₹{product.costPrice.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">₹{product.sellingPrice.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">₱{product.costPrice.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">₱{product.sellingPrice.toFixed(2)}</TableCell>
                       <TableCell>{product.supplier}</TableCell>
                       <TableCell>
                         {isOutOfStock ? (

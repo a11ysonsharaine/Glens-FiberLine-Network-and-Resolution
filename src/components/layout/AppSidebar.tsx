@@ -8,6 +8,7 @@ import {
   X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import currentUser, { getInitials } from '@/lib/currentUser';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 
@@ -49,12 +50,10 @@ export function AppSidebar() {
       )}>
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center gap-3 px-6 py-6 border-b border-sidebar-border">
-            <div className="w-10 h-10 rounded-xl bg-sidebar-primary flex items-center justify-center">
-              <Package className="w-5 h-5 text-sidebar-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold text-sidebar-foreground">TechStock</h1>
+          <div className="flex items-center gap-4 px-6 py-6 border-b border-sidebar-border">
+            <img src="/logo.png" alt="Glen's FiberLine Network & Resolution" className="w-10 h-10 rounded-md object-contain" />
+            <div className="max-w-[12rem]">
+              <h1 className="text-sm font-semibold text-sidebar-foreground leading-tight">Glen's FiberLine Network & Resolution</h1>
               <p className="text-xs text-sidebar-foreground/60">Inventory System</p>
             </div>
           </div>
@@ -85,14 +84,18 @@ export function AppSidebar() {
           {/* Footer */}
           <div className="px-6 py-4 border-t border-sidebar-border">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-sidebar-accent flex items-center justify-center">
-                <span className="text-xs font-medium text-sidebar-accent-foreground">AD</span>
+                <div className="w-8 h-8 rounded-full bg-sidebar-accent flex items-center justify-center">
+                  {currentUser.avatarUrl ? (
+                    <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-8 h-8 rounded-full object-cover" />
+                  ) : (
+                    <span className="text-xs font-medium text-sidebar-accent-foreground">{getInitials(currentUser.name)}</span>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-sidebar-foreground">{currentUser.name}</p>
+                  <p className="text-xs text-sidebar-foreground/60">{currentUser.role || 'Full Access'}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-sidebar-foreground">Admin</p>
-                <p className="text-xs text-sidebar-foreground/60">Full Access</p>
-              </div>
-            </div>
           </div>
         </div>
       </aside>

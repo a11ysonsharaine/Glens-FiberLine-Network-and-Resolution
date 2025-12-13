@@ -4,7 +4,7 @@ import { getProducts, getSales } from '@/lib/storage';
 import { Product, Sale } from '@/types/inventory';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download, FileText, Package, ShoppingCart } from 'lucide-react';
+import { Download, Package, ShoppingCart } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
@@ -13,24 +13,38 @@ const Reports = () => {
   const [sales, setSales] = useState<Sale[]>([]);
 
   useEffect(() => {
-    setProducts(getProducts());
-    setSales(getSales());
+    const load = async () => {
+      try {
+        const ps = await getProducts();
+        const ss = await getSales();
+        setProducts(ps);
+        setSales(ss);
+      } catch (err) {
+        toast({ title: 'Load error', description: 'Failed to load reports data.' });
+      }
+    };
+    load();
   }, []);
 
+  const escapeCSV = (value: any) => {
+    if (value === undefined || value === null) return '""';
+    return `"${String(value).replace(/"/g, '""')}"`;
+  };
+
   const exportInventoryCSV = () => {
-    const headers = ['Name', 'Category', 'Quantity', 'Cost Price', 'Selling Price', 'Supplier', 'Serial Number', 'Min Stock Level'];
+    const headers = ['Name', 'Category', 'Quantity', 'Cost Price (₱)', 'Selling Price (₱)', 'Supplier', 'Serial Number', 'Min Stock Level'];
     const rows = products.map(p => [
-      p.name,
-      p.category,
-      p.quantity,
-      p.costPrice,
-      p.sellingPrice,
-      p.supplier,
-      p.serialNumber || '',
-      p.minStockLevel
+      escapeCSV(p.name),
+      escapeCSV(p.category),
+      escapeCSV(p.quantity),
+      escapeCSV(p.costPrice.toFixed(2)),
+      escapeCSV(p.sellingPrice.toFixed(2)),
+      escapeCSV(p.supplier),
+      escapeCSV(p.serialNumber || ''),
+      escapeCSV(p.minStockLevel)
     ]);
 
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const csv = [headers.map(escapeCSV).join(','), ...rows.map(r => r.join(','))].join('\n');
     downloadFile(csv, `inventory-report-${format(new Date(), 'yyyy-MM-dd')}.csv`, 'text/csv');
     
     toast({
@@ -40,17 +54,17 @@ const Reports = () => {
   };
 
   const exportSalesCSV = () => {
-    const headers = ['Date', 'Product', 'Customer', 'Quantity', 'Unit Price', 'Total Amount'];
+    const headers = ['Date', 'Product', 'Customer', 'Quantity', 'Unit Price (₱)', 'Total Amount (₱)'];
     const rows = sales.map(s => [
-      format(new Date(s.createdAt), 'yyyy-MM-dd HH:mm'),
-      s.productName,
-      s.customerName || 'Walk-in',
-      s.quantity,
-      s.unitPrice,
-      s.totalAmount
+      escapeCSV(format(new Date(s.createdAt), 'yyyy-MM-dd HH:mm')),
+      escapeCSV(s.productName),
+      escapeCSV(s.customerName || 'Walk-in'),
+      escapeCSV(s.quantity),
+      escapeCSV(s.unitPrice.toFixed(2)),
+      escapeCSV(s.totalAmount.toFixed(2))
     ]);
 
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const csv = [headers.map(escapeCSV).join(','), ...rows.map(r => r.join(','))].join('\n');
     downloadFile(csv, `sales-report-${format(new Date(), 'yyyy-MM-dd')}.csv`, 'text/csv');
     
     toast({
@@ -91,7 +105,7 @@ const Reports = () => {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Total Inventory Value</CardDescription>
-              <CardTitle className="text-2xl">${totalInventoryValue.toLocaleString()}</CardTitle>
+              <CardTitle className="text-2xl">₱{totalInventoryValue.toLocaleString()}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-xs text-muted-foreground">Cost value of all items</p>
@@ -100,7 +114,7 @@ const Reports = () => {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Potential Retail Value</CardDescription>
-              <CardTitle className="text-2xl">${totalRetailValue.toLocaleString()}</CardTitle>
+              <CardTitle className="text-2xl">₱{totalRetailValue.toLocaleString()}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-xs text-muted-foreground">If all items sold at selling price</p>
@@ -109,7 +123,7 @@ const Reports = () => {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Potential Profit</CardDescription>
-              <CardTitle className="text-2xl text-success">${potentialProfit.toLocaleString()}</CardTitle>
+              <CardTitle className="text-2xl text-success">₱{potentialProfit.toLocaleString()}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-xs text-muted-foreground">Retail value minus cost</p>
@@ -118,7 +132,7 @@ const Reports = () => {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Total Sales Revenue</CardDescription>
-              <CardTitle className="text-2xl">${totalSalesRevenue.toLocaleString()}</CardTitle>
+              <CardTitle className="text-2xl">₱{totalSalesRevenue.toLocaleString()}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-xs text-muted-foreground">{totalItemsSold} items sold</p>
@@ -199,37 +213,7 @@ const Reports = () => {
           </Card>
         </div>
 
-        {/* Quick Stats */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-muted">
-                <FileText className="w-6 h-6 text-muted-foreground" />
-              </div>
-              <div>
-                <CardTitle>Category Breakdown</CardTitle>
-                <CardDescription>Products by category</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {Array.from(new Set(products.map(p => p.category))).map(category => {
-                const categoryProducts = products.filter(p => p.category === category);
-                const categoryValue = categoryProducts.reduce((sum, p) => sum + (p.quantity * p.sellingPrice), 0);
-                return (
-                  <div key={category} className="p-4 rounded-xl bg-muted/50">
-                    <p className="font-medium">{category}</p>
-                    <div className="flex justify-between mt-2 text-sm text-muted-foreground">
-                      <span>{categoryProducts.length} products</span>
-                      <span>${categoryValue.toLocaleString()}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Category breakdown removed per request */}
       </div>
     </MainLayout>
   );

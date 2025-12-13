@@ -3,9 +3,9 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { LowStockAlert } from '@/components/dashboard/LowStockAlert';
 import { RecentSales } from '@/components/dashboard/RecentSales';
-import { getDashboardStats, getLowStockProducts, getSales } from '@/lib/storage';
+import { getDashboardStats, getLowStockProducts, getSales } from '@/modules/storage';
 import { Product, Sale } from '@/types/inventory';
-import { Package, DollarSign, AlertTriangle, TrendingUp } from 'lucide-react';
+import { Package, AlertTriangle, TrendingUp } from 'lucide-react';
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -20,9 +20,32 @@ const Dashboard = () => {
   const [recentSales, setRecentSales] = useState<Sale[]>([]);
 
   useEffect(() => {
-    setStats(getDashboardStats());
-    setLowStockProducts(getLowStockProducts());
-    setRecentSales(getSales().slice(0, 5));
+    let mounted = true;
+    (async () => {
+      try {
+        const s = await getDashboardStats();
+        const low = await getLowStockProducts();
+        const recent = (await getSales()).slice(0, 5);
+        if (!mounted) return;
+        setStats(s as any);
+        setLowStockProducts(low);
+        setRecentSales(recent);
+      } catch (err: any) {
+        // Show helpful guidance if permissions prevent reading sales/products
+        // Import toast lazily to avoid circular deps
+        try {
+          const { toast } = await import('@/hooks/use-toast');
+          toast({
+            title: 'Dashboard data unavailable',
+            description: err?.message || 'Unable to load dashboard data. Check database policies or keys.',
+            variant: 'destructive',
+          });
+        } catch (e) {
+          // ignore
+        }
+      }
+    })();
+    return () => { mounted = false; };
   }, []);
 
   return (
@@ -41,13 +64,16 @@ const Dashboard = () => {
             value={stats.totalProducts}
             subtitle="Items in inventory"
             icon={<Package className="w-5 h-5" />}
-            variant="primary"
+            variant="info"
           />
           <StatsCard
             title="Inventory Value"
-            value={`$${stats.totalValue.toLocaleString()}`}
+            value={`₱${stats.totalValue.toLocaleString()}`}
             subtitle="Total cost value"
-            icon={<DollarSign className="w-5 h-5" />}
+            icon={
+              <span className="text-sm font-semibold">₱</span>
+            }
+            variant="primary"
           />
           <StatsCard
             title="Low Stock Items"
@@ -58,8 +84,8 @@ const Dashboard = () => {
           />
           <StatsCard
             title="Today's Sales"
-            value={`$${stats.todaySales.toFixed(2)}`}
-            subtitle={`Weekly: $${stats.weeklySales.toFixed(2)}`}
+            value={`₱${stats.todaySales.toFixed(2)}`}
+            subtitle={`Weekly: ₱${stats.weeklySales.toFixed(2)}`}
             icon={<TrendingUp className="w-5 h-5" />}
             variant="success"
           />
@@ -69,15 +95,15 @@ const Dashboard = () => {
         <div className="grid gap-4 md:grid-cols-3">
           <div className="rounded-2xl border bg-card p-6">
             <p className="text-sm text-muted-foreground mb-1">Daily Sales</p>
-            <p className="text-3xl font-bold">${stats.todaySales.toFixed(2)}</p>
+            <p className="text-3xl font-bold">₱{stats.todaySales.toFixed(2)}</p>
           </div>
           <div className="rounded-2xl border bg-card p-6">
             <p className="text-sm text-muted-foreground mb-1">Weekly Sales</p>
-            <p className="text-3xl font-bold">${stats.weeklySales.toFixed(2)}</p>
+            <p className="text-3xl font-bold">₱{stats.weeklySales.toFixed(2)}</p>
           </div>
           <div className="rounded-2xl border bg-card p-6">
             <p className="text-sm text-muted-foreground mb-1">Monthly Sales</p>
-            <p className="text-3xl font-bold">${stats.monthlySales.toFixed(2)}</p>
+            <p className="text-3xl font-bold">₱{stats.monthlySales.toFixed(2)}</p>
           </div>
         </div>
 

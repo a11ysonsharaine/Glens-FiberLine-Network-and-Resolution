@@ -3,13 +3,7 @@ import { Product, Category, CATEGORIES } from '@/types/inventory';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+// using native datalist for editable category input
 import {
   Dialog,
   DialogContent,
@@ -27,7 +21,7 @@ interface ProductFormProps {
 export function ProductForm({ open, onClose, onSave, product }: ProductFormProps) {
   const [formData, setFormData] = useState({
     name: '',
-    category: 'Other' as Category,
+    category: '' as Category,
     quantity: 0,
     costPrice: 0,
     sellingPrice: 0,
@@ -35,6 +29,8 @@ export function ProductForm({ open, onClose, onSave, product }: ProductFormProps
     serialNumber: '',
     minStockLevel: 5,
   });
+
+  const [categories, setCategories] = useState<Category[]>(() => [...CATEGORIES]);
 
   useEffect(() => {
     if (product) {
@@ -44,14 +40,14 @@ export function ProductForm({ open, onClose, onSave, product }: ProductFormProps
         quantity: product.quantity,
         costPrice: product.costPrice,
         sellingPrice: product.sellingPrice,
-        supplier: product.supplier,
+        supplier: product.supplier || '',
         serialNumber: product.serialNumber || '',
         minStockLevel: product.minStockLevel,
       });
     } else {
       setFormData({
         name: '',
-        category: 'Other',
+        category: '',
         quantity: 0,
         costPrice: 0,
         sellingPrice: 0,
@@ -92,21 +88,37 @@ export function ProductForm({ open, onClose, onSave, product }: ProductFormProps
 
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="category">Category</Label>
-                <Select
-                  value={formData.category}
-                  onValueChange={(value: Category) => setFormData({ ...formData, category: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORIES.map((cat) => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  <Label htmlFor="category">Category</Label>
+                  <Input
+                    id="category"
+                    list="category-list"
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value as Category })}
+                    onBlur={(e) => {
+                      const val = (e.currentTarget.value || '').trim();
+                      if (val && !categories.includes(val)) {
+                        setCategories((prev) => {
+                          const next = [...prev, val];
+                          try {
+                            // also update exported CATEGORIES in-memory so other components see it
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            (CATEGORIES as any).push(val);
+                          } catch (err) {
+                            // ignore if not writable
+                          }
+                          return next;
+                        });
+                      }
+                    }}
+                    placeholder="Type or choose category"
+                    required
+                  />
+                  <datalist id="category-list">
+                    {categories.map((cat) => (
+                      <option key={cat} value={cat} />
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                  </datalist>
+                </div>
 
               <div className="grid gap-2">
                 <Label htmlFor="quantity">Quantity</Label>
@@ -114,8 +126,8 @@ export function ProductForm({ open, onClose, onSave, product }: ProductFormProps
                   id="quantity"
                   type="number"
                   min="0"
-                  value={formData.quantity}
-                  onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })}
+                  value={String(formData.quantity)}
+                  onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value || '0', 10) || 0 })}
                   required
                 />
               </div>
@@ -123,27 +135,27 @@ export function ProductForm({ open, onClose, onSave, product }: ProductFormProps
 
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="costPrice">Cost Price ($)</Label>
+                <Label htmlFor="costPrice">Cost Price (₱)</Label>
                 <Input
                   id="costPrice"
                   type="number"
                   min="0"
                   step="0.01"
-                  value={formData.costPrice}
-                  onChange={(e) => setFormData({ ...formData, costPrice: parseFloat(e.target.value) || 0 })}
+                  value={String(formData.costPrice)}
+                  onChange={(e) => setFormData({ ...formData, costPrice: parseFloat(e.target.value || '0') || 0 })}
                   required
                 />
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="sellingPrice">Selling Price ($)</Label>
+                <Label htmlFor="sellingPrice">Selling Price (₱)</Label>
                 <Input
                   id="sellingPrice"
                   type="number"
                   min="0"
                   step="0.01"
-                  value={formData.sellingPrice}
-                  onChange={(e) => setFormData({ ...formData, sellingPrice: parseFloat(e.target.value) || 0 })}
+                  value={String(formData.sellingPrice)}
+                  onChange={(e) => setFormData({ ...formData, sellingPrice: parseFloat(e.target.value || '0') || 0 })}
                   required
                 />
               </div>
@@ -156,8 +168,7 @@ export function ProductForm({ open, onClose, onSave, product }: ProductFormProps
                   id="supplier"
                   value={formData.supplier}
                   onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
-                  placeholder="Supplier name"
-                  required
+                  placeholder="Supplier name (optional)"
                 />
               </div>
 
@@ -167,8 +178,8 @@ export function ProductForm({ open, onClose, onSave, product }: ProductFormProps
                   id="minStockLevel"
                   type="number"
                   min="0"
-                  value={formData.minStockLevel}
-                  onChange={(e) => setFormData({ ...formData, minStockLevel: parseInt(e.target.value) || 0 })}
+                  value={String(formData.minStockLevel)}
+                  onChange={(e) => setFormData({ ...formData, minStockLevel: parseInt(e.target.value || '0', 10) || 0 })}
                   required
                 />
               </div>

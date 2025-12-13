@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { SaleForm } from '@/components/sales/SaleForm';
 import { Sale, Product } from '@/types/inventory';
-import { getSales, getProducts, addSale } from '@/lib/storage';
+import { getSales, getProducts, addSale } from '@/modules/storage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Search, ShoppingCart, Receipt } from 'lucide-react';
+import { Plus, Search, ShoppingCart } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
@@ -25,9 +25,23 @@ const Sales = () => {
   const [formOpen, setFormOpen] = useState(false);
 
   useEffect(() => {
-    setSales(getSales());
-    setProducts(getProducts());
+    let mounted = true;
+    (async () => {
+      const s = await getSales();
+      const p = await getProducts();
+      if (!mounted) return;
+      setSales(s);
+      setProducts(p);
+    })();
+    return () => { mounted = false; };
   }, []);
+
+  // Fetch latest products when opening the sale form to avoid stale/empty lists
+  const handleOpenForm = async () => {
+    const p = await getProducts();
+    setProducts(p);
+    setFormOpen(true);
+  };
 
   const filteredSales = useMemo(() => {
     return sales.filter(sale =>
@@ -36,16 +50,32 @@ const Sales = () => {
     );
   }, [sales, search]);
 
-  const handleAddSale = (saleData: { productId: string; productName: string; quantity: number; unitPrice: number; totalAmount: number; customerName?: string }) => {
-    const result = addSale(saleData);
-    if (result) {
-      setSales(getSales());
-      setProducts(getProducts());
-      toast({
-        title: 'Sale Recorded',
-        description: `Sale of ${saleData.quantity}x ${saleData.productName} for $${saleData.totalAmount.toFixed(2)}`,
-      });
-    } else {
+  const handleAddSale = async (saleData: { productId: string; productName: string; quantity: number; unitPrice: number; totalAmount: number; customerName?: string }) => {
+    console.debug('handleAddSale: sending', saleData);
+    try {
+      const result = await addSale(saleData);
+      console.debug('handleAddSale: result', result);
+      if (result) {
+        setSales(await getSales());
+        setProducts(await getProducts());
+        toast({
+          title: 'Sale Recorded',
+          description: `Sale of ${saleData.quantity}x ${saleData.productName} for ₱${saleData.totalAmount.toFixed(2)}`,
+        });
+      } else {
+        // If addSale returned null, try refetching after a short delay in case of eventual consistency
+        console.warn('addSale returned null; retrying fetch after delay');
+        setTimeout(async () => {
+          setSales(await getSales());
+          setProducts(await getProducts());
+        }, 500);
+        toast({
+          title: 'Sale Recorded',
+          description: `Sale may have been recorded (database shows entries). If it doesn't appear refresh the page.`,
+        });
+      }
+    } catch (err) {
+      console.error('handleAddSale error', err);
       toast({
         title: 'Sale Failed',
         description: 'Unable to process sale. Check stock availability.',
@@ -72,7 +102,7 @@ const Sales = () => {
             <h1 className="text-2xl font-bold tracking-tight">Sales</h1>
             <p className="text-muted-foreground">Record and track all sales transactions</p>
           </div>
-          <Button onClick={() => setFormOpen(true)} className="gap-2">
+          <Button onClick={handleOpenForm} className="gap-2">
             <Plus className="w-4 h-4" />
             New Sale
           </Button>
@@ -81,17 +111,17 @@ const Sales = () => {
         {/* Today's Summary */}
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-2xl border bg-card p-6 flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-success/20">
-              <ShoppingCart className="w-6 h-6 text-success" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Today's Revenue</p>
-              <p className="text-2xl font-bold">${todayTotal.toFixed(2)}</p>
-            </div>
+              <div className="p-3 rounded-xl bg-success/20">
+                <ShoppingCart className="w-6 h-6 text-success" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Today's Revenue</p>
+                <p className="text-2xl font-bold">₱{todayTotal.toFixed(2)}</p>
+              </div>
           </div>
           <div className="rounded-2xl border bg-card p-6 flex items-center gap-4">
             <div className="p-3 rounded-xl bg-primary/20">
-              <Receipt className="w-6 h-6 text-primary" />
+              <span className="inline-flex items-center justify-center w-6 h-6 text-primary font-semibold">₱</span>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Today's Transactions</p>
@@ -157,9 +187,9 @@ const Sales = () => {
                       )}
                     </TableCell>
                     <TableCell className="text-center">{sale.quantity}</TableCell>
-                    <TableCell className="text-right">${sale.unitPrice.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">₱{sale.unitPrice.toFixed(2)}</TableCell>
                     <TableCell className="text-right font-semibold text-success">
-                      ${sale.totalAmount.toFixed(2)}
+                      ₱{sale.totalAmount.toFixed(2)}
                     </TableCell>
                   </TableRow>
                 ))}

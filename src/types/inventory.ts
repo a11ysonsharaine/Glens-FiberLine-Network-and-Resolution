@@ -1,11 +1,4 @@
-export type Category = 
-  | 'CCTV Cameras'
-  | 'Speakers'
-  | 'WiFi Routers'
-  | 'Networking'
-  | 'Accessories'
-  | 'Cables'
-  | 'Other';
+export type Category = string;
 
 export interface Product {
   id: string;
@@ -14,7 +7,7 @@ export interface Product {
   quantity: number;
   costPrice: number;
   sellingPrice: number;
-  supplier: string;
+  supplier?: string;
   serialNumber?: string;
   minStockLevel: number;
   createdAt: Date;
@@ -49,12 +42,4 @@ export interface DashboardStats {
   monthlySales: number;
 }
 
-export const CATEGORIES: Category[] = [
-  'CCTV Cameras',
-  'Speakers',
-  'WiFi Routers',
-  'Networking',
-  'Accessories',
-  'Cables',
-  'Other',
-];
+export const CATEGORIES: Category[] = [];

@@ -112,9 +112,9 @@ export function SaleForm({ open, onClose, onSave, products }: SaleFormProps) {
               </div>
 
               <div className="grid gap-2">
-                <Label>Unit Price</Label>
+                <Label>Unit Price (₱)</Label>
                 <Input
-                  value={selectedProduct ? `$${selectedProduct.sellingPrice.toFixed(2)}` : '-'}
+                  value={selectedProduct ? `₱${selectedProduct.sellingPrice.toFixed(2)}` : '-'}
                   disabled
                 />
               </div>
@@ -134,7 +134,7 @@ export function SaleForm({ open, onClose, onSave, products }: SaleFormProps) {
               <div className="p-4 rounded-xl bg-primary/10 border border-primary/20">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Total Amount</span>
-                  <span className="text-2xl font-bold text-primary">${totalAmount.toFixed(2)}</span>
+                  <span className="text-2xl font-bold text-primary">₱{totalAmount.toFixed(2)}</span>
                 </div>
               </div>
             )}

@@ -15,3 +15,18 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
   }
 });
+
+// Debug: surface missing/incorrect env configuration early in dev
+if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+  console.error('Supabase env vars missing: ensure VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY are set in .env and restart Vite');
+} else if (typeof SUPABASE_PUBLISHABLE_KEY === 'string') {
+  try {
+    const masked = SUPABASE_PUBLISHABLE_KEY.length > 12
+      ? `${SUPABASE_PUBLISHABLE_KEY.slice(0,6)}...${SUPABASE_PUBLISHABLE_KEY.slice(-6)}`
+      : SUPABASE_PUBLISHABLE_KEY;
+    // Non-sensitive debug info to help diagnose invalid key issues
+    console.info('Supabase client configured. URL:', SUPABASE_URL, 'Key(prefix/suffix):', masked);
+  } catch (e) {
+    // ignore
+  }
+}

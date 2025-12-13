@@ -10,7 +10,7 @@ interface StatsCardProps {
     value: number;
     isPositive: boolean;
   };
-  variant?: 'default' | 'warning' | 'success' | 'primary';
+  variant?: 'default' | 'warning' | 'success' | 'primary' | 'info';
 }
 
 const variantStyles = {
@@ -18,6 +18,7 @@ const variantStyles = {
   warning: 'bg-warning/10 border-warning/20',
   success: 'bg-success/10 border-success/20',
   primary: 'bg-primary/10 border-primary/20',
+  info: 'bg-indigo-100/40 border-indigo-200/30 dark:bg-indigo-900/20 dark:border-indigo-800/10 backdrop-blur-md shadow-md',
 };
 
 const iconVariantStyles = {
@@ -25,6 +26,7 @@ const iconVariantStyles = {
   warning: 'bg-warning/20 text-warning',
   success: 'bg-success/20 text-success',
   primary: 'bg-primary/20 text-primary',
+  info: 'rounded-full bg-indigo-100/80 text-indigo-800 dark:bg-indigo-700/30 dark:text-indigo-200 shadow-sm',
 };
 
 export function StatsCard({ title, value, subtitle, icon, trend, variant = 'default' }: StatsCardProps) {

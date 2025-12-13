@@ -18,5 +18,6 @@ export default defineConfig(({ mode }) => ({
   // Ensure top-level await is supported by targeting a modern JS runtime
   build: {
     target: 'es2022',
+    sourcemap: true,
   },
 }));

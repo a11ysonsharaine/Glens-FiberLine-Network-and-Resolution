@@ -46,3 +46,47 @@ if (missing.length > 0) {
 		renderError(String(err));
 	}
 }
+
+// Global runtime handlers to capture errors that may happen after initial mount
+window.addEventListener('error', (ev) => {
+	// eslint-disable-next-line no-console
+	console.error('Uncaught error (window):', (ev && (ev as ErrorEvent).error) || ev.message || ev);
+});
+window.addEventListener('unhandledrejection', (ev) => {
+	// eslint-disable-next-line no-console
+	console.error('Unhandled promise rejection (window):', (ev && (ev as PromiseRejectionEvent).reason) || ev);
+});
+
+// Post-render sanity check: if the root is still empty/blank, show a diagnostic overlay
+setTimeout(() => {
+	try {
+		const root = document.getElementById('root');
+		if (!root) return;
+		const content = root.innerHTML || '';
+		if (content.trim() === '') {
+			const envReport = {
+				VITE_USE_SUPABASE: import.meta.env.VITE_USE_SUPABASE ? 'present' : 'missing',
+				VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL ? 'present' : 'missing',
+				VITE_SUPABASE_PUBLISHABLE_KEY: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ? 'present' : 'missing',
+			};
+			const msg = `App mounted but produced no visible output.\n\nEnv presence: ${JSON.stringify(envReport, null, 2)}\n\nCheck DevTools Console and Network for errors or missing assets. If using react-router, ensure you have a route for '/'.`;
+			// eslint-disable-next-line no-console
+			console.warn('Render diagnostic:', msg);
+			root.innerHTML = `
+				<div style="padding:2rem;font-family:system-ui;color:#111;background:#fff">
+					<h2 style="color:#b31b1b">Blank render diagnostic</h2>
+					<pre style="white-space:pre-wrap">${msg}</pre>
+					<p>Hints:</p>
+					<ul>
+						<li>Ensure Vite env vars are set in Render BEFORE the deploy.</li>
+						<li>Open DevTools &gt; Console and Network; look for errors or 404s.</li>
+						<li>If your app uses client-side routing, ensure a <code>/</code> route is defined.</li>
+					</ul>
+				</div>
+			`;
+		}
+	} catch (e) {
+		// eslint-disable-next-line no-console
+		console.error('Error during post-render diagnostic:', e);
+	}
+}, 600);

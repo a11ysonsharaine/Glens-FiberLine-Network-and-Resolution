@@ -15,6 +15,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 
 interface SaleFormProps {
@@ -65,9 +66,10 @@ export function SaleForm({ open, onClose, onSave, products }: SaleFormProps) {
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
-          <DialogTitle>Record New Sale</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+            <DialogTitle>Record New Sale</DialogTitle>
+            <DialogDescription>Fill out the form to record a new sales transaction.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4 mt-4">
           <div className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="product">Product</Label>

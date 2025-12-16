@@ -32,6 +32,19 @@ export const addProduct = async (product: Omit<Product, 'id' | 'createdAt' | 'up
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   } as any;
+  // debug: log payload shape before inserting (helps catch unexpected types)
+  // eslint-disable-next-line no-console
+  console.debug('storage.supabase.addProduct payload:', {
+    name: payload.name,
+    category: payload.category,
+    quantity: payload.quantity,
+    cost_price: payload.cost_price,
+    selling_price: payload.selling_price,
+    supplier: payload.supplier,
+    serial_number: payload.serial_number,
+    min_stock_level: payload.min_stock_level,
+  });
+
   const { data, error } = await supabase.from<any>('products').insert(payload).select().single();
   if (error) throw error;
   const p = data as any;
@@ -61,6 +74,10 @@ export const updateProduct = async (id: string, patch: Partial<Product>): Promis
   if (patch.serialNumber !== undefined) payload.serial_number = patch.serialNumber;
   if (patch.minStockLevel !== undefined) payload.min_stock_level = patch.minStockLevel;
 
+  // debug: log update payload
+  // eslint-disable-next-line no-console
+  console.debug('storage.supabase.updateProduct', { id, payload });
+
   const { data, error } = await supabase.from<any>('products').update(payload).eq('id', id).select().single();
   if (error) throw error;
   const p = data as any;
@@ -80,6 +97,8 @@ export const updateProduct = async (id: string, patch: Partial<Product>): Promis
 };
 
 export const deleteProduct = async (id: string): Promise<boolean> => {
+  // eslint-disable-next-line no-console
+  console.debug('storage.supabase.deleteProduct', { id });
   const { error } = await supabase.from('products').delete().eq('id', id);
   if (error) throw error;
   return true;
@@ -103,6 +122,14 @@ export const getSales = async (): Promise<Sale[]> => {
 export const addSale = async (sale: Omit<Sale, 'id' | 'createdAt'>): Promise<Sale | null> => {
   // Use RPC add_sale if available for atomicity, otherwise fall back to sequential operations
   try {
+    // debug: log RPC params (avoid logging secrets)
+    // eslint-disable-next-line no-console
+    console.debug('storage.supabase.addSale RPC params:', {
+      p_product_id: sale.productId,
+      p_quantity: sale.quantity,
+      p_unit_price: sale.unitPrice,
+    });
+
     const rpc = await supabase.rpc('add_sale', {
       p_product_id: sale.productId,
       p_quantity: sale.quantity,
@@ -128,6 +155,8 @@ export const addSale = async (sale: Omit<Sale, 'id' | 'createdAt'>): Promise<Sal
   } catch (e) {
     console.error('addSale RPC failed, falling back to sequential path', e);
     // If RPC fails, perform sequential operations (less safe for concurrency).
+    // eslint-disable-next-line no-console
+    console.debug('storage.supabase.addSale fallback path - fetching product', { productId: sale.productId });
     const { data: prodData, error: prodErr } = await supabase.from<any>('products').select('*').eq('id', sale.productId).single();
     if (prodErr) throw prodErr;
     const product = prodData as any;
@@ -145,6 +174,8 @@ export const addSale = async (sale: Omit<Sale, 'id' | 'createdAt'>): Promise<Sal
       customer_name: sale.customerName ?? null,
       created_at: new Date().toISOString(),
     } as any;
+    // eslint-disable-next-line no-console
+    console.debug('storage.supabase.addSale fallback - inserting sale', { payload: { product_id: payload.product_id, quantity: payload.quantity, unit_price: payload.unit_price } });
     const { data: saleData, error: saleErr } = await supabase.from<any>('sales').insert(payload).select().single();
     if (saleErr) throw saleErr;
     const s = saleData as any;
@@ -214,3 +245,38 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
     monthlySales: 0,
   } as any;
 };
+
+  export const deleteSale = async (saleId: string): Promise<boolean> => {
+    // Remove a sale and restore product quantity atomically where possible.
+    // This implementation performs steps sequentially via the client; for
+    // stronger guarantees create a DB-side RPC that performs the operations
+    // inside a transaction.
+    try {
+      // fetch sale
+      const { data: saleData, error: saleErr } = await supabase.from<any>('sales').select('*').eq('id', saleId).single();
+      if (saleErr) throw saleErr;
+      if (!saleData) return false;
+
+      const productId = saleData.product_id;
+      const qty = Number(saleData.quantity ?? 0);
+
+      // increment product quantity
+      const { data: prodData, error: prodErr } = await supabase.from<any>('products').select('id,quantity').eq('id', productId).single();
+      if (prodErr) throw prodErr;
+      if (!prodData) throw new Error('Associated product not found');
+
+      const newQty = Number(prodData.quantity ?? 0) + qty;
+      const { error: updErr } = await supabase.from('products').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', productId);
+      if (updErr) throw updErr;
+
+      // delete sale
+      const { error: delErr } = await supabase.from('sales').delete().eq('id', saleId);
+      if (delErr) throw delErr;
+
+      return true;
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('deleteSale failed', e);
+      throw e;
+    }
+  };

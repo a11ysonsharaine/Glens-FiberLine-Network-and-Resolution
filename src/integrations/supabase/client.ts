@@ -2,31 +2,74 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+// Validate and coerce build-time Vite env vars to avoid passing non-string
+// values into the Supabase client which can cause Headers.set errors in the browser.
+const rawUrl = import.meta.env.VITE_SUPABASE_URL;
+const rawKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const useSupabase = String(import.meta.env.VITE_USE_SUPABASE ?? 'false') === 'true';
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
-
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  auth: {
-    storage: localStorage,
-    persistSession: true,
-    autoRefreshToken: true,
-  }
-});
-
-// Debug: surface missing/incorrect env configuration early in dev
-if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-  console.error('Supabase env vars missing: ensure VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY are set in .env and restart Vite');
-} else if (typeof SUPABASE_PUBLISHABLE_KEY === 'string') {
-  try {
-    const masked = SUPABASE_PUBLISHABLE_KEY.length > 12
-      ? `${SUPABASE_PUBLISHABLE_KEY.slice(0,6)}...${SUPABASE_PUBLISHABLE_KEY.slice(-6)}`
-      : SUPABASE_PUBLISHABLE_KEY;
-    // Non-sensitive debug info to help diagnose invalid key issues
-    console.info('Supabase client configured. URL:', SUPABASE_URL, 'Key(prefix/suffix):', masked);
-  } catch (e) {
-    // ignore
-  }
+// Sanitize publishable key: some hosting UIs accidentally paste whole .env
+// contents into a single env value (newlines / extra key=value pairs). That
+// breaks the browser `Headers.set` call because header values cannot contain
+// CR/LF or unrelated text. Try to extract a JWT-like token (Supabase keys
+// often start with 'eyJ') or take the first non-empty line as a best-effort.
+function extractPublishableKey(v: string) {
+  if (!v) return v;
+  const s = String(v).trim();
+  if (!/\n|\r|\s|=/.test(s)) return s;
+  const jwt = s.split(/\s+/).find(t => /^eyJ[\w-]*/.test(t));
+  if (jwt) return jwt;
+  const firstLine = s.split(/\r?\n/)[0];
+  return firstLine || s;
 }
+
+// Export a safe `supabase` reference. When envs are missing or disabled we
+// export `null` so callers fail fast with a clear message rather than causing
+// low-level Header/Fetch errors in the browser.
+export const supabase = (() => {
+  if (!useSupabase) {
+    // eslint-disable-next-line no-console
+    console.warn('VITE_USE_SUPABASE is not true — skipping Supabase client initialization.');
+    return null as unknown as ReturnType<typeof createClient<Database>>;
+  }
+
+  if (!rawUrl || !rawKey) {
+    // eslint-disable-next-line no-console
+    console.error('Supabase env vars missing at build time. Ensure VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY are set in your build environment.');
+    // Provide a null export to prevent initializing with invalid values.
+    return null as unknown as ReturnType<typeof createClient<Database>>;
+  }
+
+  const SUPABASE_URL = String(rawUrl).trim();
+  let SUPABASE_PUBLISHABLE_KEY = extractPublishableKey(String(rawKey));
+  if (SUPABASE_PUBLISHABLE_KEY !== String(rawKey).trim()) {
+    // eslint-disable-next-line no-console
+    console.warn('Sanitized VITE_SUPABASE_PUBLISHABLE_KEY: extra data removed. Please set the variable to the raw key (no newlines or other entries).');
+  }
+
+  try {
+    const client = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+      auth: {
+        storage: localStorage,
+        persistSession: true,
+        autoRefreshToken: true,
+      }
+    });
+
+    try {
+      const masked = SUPABASE_PUBLISHABLE_KEY.length > 12
+        ? `${SUPABASE_PUBLISHABLE_KEY.slice(0,6)}...${SUPABASE_PUBLISHABLE_KEY.slice(-6)}`
+        : SUPABASE_PUBLISHABLE_KEY;
+      // eslint-disable-next-line no-console
+      console.info('Supabase client configured. URL:', SUPABASE_URL, 'Key(prefix/suffix):', masked);
+    } catch (_) {
+      // ignore masking errors
+    }
+
+    return client;
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to initialize Supabase client:', e);
+    return null as unknown as ReturnType<typeof createClient<Database>>;
+  }
+})();

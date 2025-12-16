@@ -128,10 +128,11 @@ export const addProduct = async (product: Omit<Product, 'id' | 'createdAt' | 'up
     createdAt: new Date(),
     updatedAt: new Date(),
   };
-  products.push(newProduct);
+  products.unshift(newProduct);
   await saveProducts(products);
   return newProduct;
 };
+
 
 export const updateProduct = async (id: string, updates: Partial<Product>): Promise<Product | null> => {
   const products = await getProducts();
@@ -226,4 +227,23 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
     weeklySales,
     monthlySales,
   };
+};
+
+export const deleteSale = async (saleId: string): Promise<boolean> => {
+  const sales = await getSales();
+  const sale = sales.find(s => s.id === saleId);
+  if (!sale) return false;
+
+  // restore product quantity
+  const products = await getProducts();
+  const prodIndex = products.findIndex(p => p.id === sale.productId);
+  if (prodIndex !== -1) {
+    products[prodIndex].quantity = Number(products[prodIndex].quantity ?? 0) + Number(sale.quantity ?? 0);
+    products[prodIndex].updatedAt = new Date();
+    await saveProducts(products);
+  }
+
+  const filtered = sales.filter(s => s.id !== saleId);
+  await saveSales(filtered);
+  return true;
 };

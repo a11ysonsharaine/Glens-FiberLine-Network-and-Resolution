@@ -24,6 +24,7 @@ const Sales = () => {
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [deletingSaleId, setDeletingSaleId] = useState<string | null>(null);
+  const [locallyDeletedIds, setLocallyDeletedIds] = useState<string[]>([]);
 
   useEffect(() => {
     let mounted = true;
@@ -50,22 +51,46 @@ const Sales = () => {
       sale.customerName?.toLowerCase().includes(search.toLowerCase())
     );
   }, [sales, search]);
+  
+  // Exclude sales that were hidden locally due to server-side inconsistencies
+  const visibleSales = useMemo(() => filteredSales.filter(s => !locallyDeletedIds.includes(s.id)), [filteredSales, locallyDeletedIds]);
 
   const handleDeleteSale = async (saleId: string, productName: string, qty: number) => {
     const ok = window.confirm(`Delete sale of ${qty} x ${productName}? This will restore ${qty} units back to inventory.`);
     if (!ok) return;
 
-    // Optimistic UI update: remove sale locally immediately
+    // Optimistic UI update: remove sale locally immediately and mark deleting
     const prevSales = sales;
     const prevProducts = products;
     setSales(s => s.filter(sale => sale.id !== saleId));
     setDeletingSaleId(saleId);
     try {
       await deleteSale(saleId);
-      // refresh sales and products to reflect authoritative server state
-      setSales(await getSales());
-      setProducts(await getProducts());
-      toast({ title: 'Sale deleted', description: `Restored ${qty} units to inventory for ${productName}.` });
+
+      // Try to refresh authoritative server state a few times to handle eventual consistency/caching
+      let fetched: Sale[] = [];
+      let found = true;
+      for (let i = 0; i < 3; i++) {
+        // small delay between retries
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((res) => setTimeout(res, 400 * (i + 1)));
+        // eslint-disable-next-line no-await-in-loop
+        fetched = await getSales();
+        found = fetched.some(s => s.id === saleId);
+        if (!found) break;
+      }
+
+      if (!found) {
+        setSales(fetched);
+        setProducts(await getProducts());
+        toast({ title: 'Sale deleted', description: `Restored ${qty} units to inventory for ${productName}.` });
+      } else {
+        // Server still returns the sale (possible permission/caching issue).
+        // Hide it locally to avoid repeated restores and warn the user.
+        setLocallyDeletedIds(ids => Array.from(new Set([...ids, saleId])));
+        setProducts(await getProducts());
+        toast({ title: 'Sale deleted (local)', description: `Restored ${qty} units to inventory for ${productName}. The sale is still present on the server — refresh the page or check server permissions.`, });
+      }
     } catch (err) {
       // rollback UI on error
       console.error('deleteSale error', err);
@@ -196,7 +221,7 @@ const Sales = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredSales.map((sale) => (
+                {visibleSales.map((sale) => (
                   <TableRow key={sale.id} className="hover:bg-muted/30">
                     <TableCell className="font-medium">
                       <div>

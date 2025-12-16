@@ -23,6 +23,7 @@ const Sales = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
+  const [deletingSaleId, setDeletingSaleId] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -53,14 +54,25 @@ const Sales = () => {
   const handleDeleteSale = async (saleId: string, productName: string, qty: number) => {
     const ok = window.confirm(`Delete sale of ${qty} x ${productName}? This will restore ${qty} units back to inventory.`);
     if (!ok) return;
+
+    // Optimistic UI update: remove sale locally immediately
+    const prevSales = sales;
+    const prevProducts = products;
+    setSales(s => s.filter(sale => sale.id !== saleId));
+    setDeletingSaleId(saleId);
     try {
       await deleteSale(saleId);
-      setSales(await getSales());
+      // refresh products to reflect restored quantity
       setProducts(await getProducts());
       toast({ title: 'Sale deleted', description: `Restored ${qty} units to inventory for ${productName}.` });
     } catch (err) {
+      // rollback UI on error
       console.error('deleteSale error', err);
+      setSales(prevSales);
+      setProducts(prevProducts);
       toast({ title: 'Delete failed', description: 'Unable to delete sale. See console for details.', variant: 'destructive' });
+    } finally {
+      setDeletingSaleId(null);
     }
   };
 

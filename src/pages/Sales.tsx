@@ -92,11 +92,13 @@ const Sales = () => {
         toast({ title: 'Sale deleted (local)', description: `Restored ${qty} units to inventory for ${productName}. The sale is still present on the server — refresh the page or check server permissions.`, });
       }
     } catch (err) {
-      // rollback UI on error
+      // rollback UI on error and surface server message when available
+      // eslint-disable-next-line no-console
       console.error('deleteSale error', err);
       setSales(prevSales);
       setProducts(prevProducts);
-      toast({ title: 'Delete failed', description: 'Unable to delete sale. See console for details.', variant: 'destructive' });
+      const details = err && (err as any).message ? (err as any).message : String(err);
+      toast({ title: 'Delete failed', description: `Unable to delete sale: ${details}`, variant: 'destructive' });
     } finally {
       setDeletingSaleId(null);
     }

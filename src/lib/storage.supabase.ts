@@ -270,11 +270,26 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
       }
 
       // Delete sale first to avoid repeated inventory restores when delete fails
-      const { error: delErr } = await supabase.from('sales').delete().eq('id', saleId);
+      // Use `.select()` so the API returns the deleted rows (helps debug permissions/caching)
+      const delResp = await supabase.from('sales').delete().eq('id', saleId).select();
+      const delErr = (delResp as any).error;
+      const delData = (delResp as any).data;
+      // Log the response for debugging (client will surface errors)
+      // eslint-disable-next-line no-console
+      console.debug('deleteSale: delete response', { saleId, delErr, delData });
+
       if (delErr) {
         // eslint-disable-next-line no-console
         console.error('deleteSale: failed to delete sale record, aborting inventory update', { saleId, error: delErr });
         throw delErr;
+      }
+
+      // If delete returned no rows, surface that as an error so caller can detect unexpected server behavior
+      if (!delData || (Array.isArray(delData) && delData.length === 0)) {
+        const msg = `deleteSale: delete returned no rows for id=${saleId}`;
+        // eslint-disable-next-line no-console
+        console.warn(msg, { saleId, delData });
+        throw new Error(msg);
       }
 
       // Now update/increment product quantity

@@ -1,3 +1,18 @@
+// Debug helper: wrap Headers.set to log invalid header values and stack traces
+if (typeof Headers !== 'undefined' && Headers.prototype && typeof Headers.prototype.set === 'function') {
+	const __origHeadersSet = Headers.prototype.set;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	(Headers.prototype as any).set = function (name: string, value: any) {
+		try {
+			return __origHeadersSet.call(this, name, value);
+		} catch (e) {
+			// eslint-disable-next-line no-console
+			console.error('Headers.set error:', { name, value, type: typeof value, preview: String(value).slice(0,200) }, new Error().stack);
+			throw e;
+		}
+	};
+}
+
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";

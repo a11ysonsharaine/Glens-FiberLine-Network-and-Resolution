@@ -48,7 +48,7 @@ export function RecentSales({ sales }: RecentSalesProps) {
               </p>
             </div>
             <div className="text-right">
-              <p className="text-sm font-semibold text-success">${sale.totalAmount.toFixed(2)}</p>
+              <p className="text-sm font-semibold text-success">₱{sale.totalAmount.toFixed(2)}</p>
               <p className="text-xs text-muted-foreground">Qty: {sale.quantity}</p>
             </div>
           </div>

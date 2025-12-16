@@ -21,5 +21,6 @@ export const deleteProduct = adapter.deleteProduct;
 export const getSales = adapter.getSales;
 export const saveSales = adapter.saveSales;
 export const addSale = adapter.addSale;
+export const deleteSale = adapter.deleteSale;
 export const getLowStockProducts = adapter.getLowStockProducts;
 export const getDashboardStats = adapter.getDashboardStats;

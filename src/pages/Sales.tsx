@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { SaleForm } from '@/components/sales/SaleForm';
 import { Sale, Product } from '@/types/inventory';
-import { getSales, getProducts, addSale } from '@/modules/storage';
+import { getSales, getProducts, addSale, deleteSale } from '@/modules/storage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Search, ShoppingCart } from 'lucide-react';
+import { Plus, Search, ShoppingCart, Trash2, CreditCard } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
@@ -49,6 +49,20 @@ const Sales = () => {
       sale.customerName?.toLowerCase().includes(search.toLowerCase())
     );
   }, [sales, search]);
+
+  const handleDeleteSale = async (saleId: string, productName: string, qty: number) => {
+    const ok = window.confirm(`Delete sale of ${qty} x ${productName}? This will restore ${qty} units back to inventory.`);
+    if (!ok) return;
+    try {
+      await deleteSale(saleId);
+      setSales(await getSales());
+      setProducts(await getProducts());
+      toast({ title: 'Sale deleted', description: `Restored ${qty} units to inventory for ${productName}.` });
+    } catch (err) {
+      console.error('deleteSale error', err);
+      toast({ title: 'Delete failed', description: 'Unable to delete sale. See console for details.', variant: 'destructive' });
+    }
+  };
 
   const handleAddSale = async (saleData: { productId: string; productName: string; quantity: number; unitPrice: number; totalAmount: number; customerName?: string }) => {
     console.debug('handleAddSale: sending', saleData);
@@ -121,7 +135,7 @@ const Sales = () => {
           </div>
           <div className="rounded-2xl border bg-card p-6 flex items-center gap-4">
             <div className="p-3 rounded-xl bg-primary/20">
-              <span className="inline-flex items-center justify-center w-6 h-6 text-primary font-semibold">₱</span>
+              <CreditCard className="w-6 h-6 text-primary" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Today's Transactions</p>
@@ -165,6 +179,7 @@ const Sales = () => {
                   <TableHead className="text-center">Qty</TableHead>
                   <TableHead className="text-right">Unit Price</TableHead>
                   <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -190,6 +205,17 @@ const Sales = () => {
                     <TableCell className="text-right">₱{sale.unitPrice.toFixed(2)}</TableCell>
                     <TableCell className="text-right font-semibold text-success">
                       ₱{sale.totalAmount.toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-right w-24">
+                      <div className="flex justify-end">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteSale(sale.id, sale.productName, sale.quantity)}
+                        >
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

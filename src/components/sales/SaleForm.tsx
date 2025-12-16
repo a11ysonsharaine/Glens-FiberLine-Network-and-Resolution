@@ -26,26 +26,29 @@ interface SaleFormProps {
 
 export function SaleForm({ open, onClose, onSave, products }: SaleFormProps) {
   const [selectedProductId, setSelectedProductId] = useState('');
-  const [quantity, setQuantity] = useState(1);
+  // keep quantity as a string so the user can clear the field while typing
+  const [quantity, setQuantity] = useState<string>('1');
   const [customerName, setCustomerName] = useState('');
 
   const selectedProduct = products.find(p => p.id === selectedProductId);
   const maxQuantity = selectedProduct?.quantity || 0;
-  const totalAmount = selectedProduct ? selectedProduct.sellingPrice * quantity : 0;
+  const quantityNum = Number.parseInt(quantity || '0', 10) || 0;
+  const totalAmount = selectedProduct ? selectedProduct.sellingPrice * quantityNum : 0;
 
   const availableProducts = products.filter(p => p.quantity > 0);
 
   useEffect(() => {
     if (open) {
       setSelectedProductId('');
-      setQuantity(1);
+      setQuantity('1');
       setCustomerName('');
     }
   }, [open]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProduct || quantity > maxQuantity) return;
+    const v = Number.parseInt(quantity || '0', 10);
+    if (!selectedProduct || Number.isNaN(v) || v < 1 || v > maxQuantity) return;
 
     onSave({
       productId: selectedProduct.id,
@@ -100,14 +103,27 @@ export function SaleForm({ open, onClose, onSave, products }: SaleFormProps) {
                   id="quantity"
                   type="number"
                   min="1"
-                  max={maxQuantity}
                   value={quantity}
-                  onChange={(e) => setQuantity(Math.min(parseInt(e.target.value) || 1, maxQuantity))}
+                  onChange={(e) => {
+                    // allow empty string so user can delete the current value
+                    const val = e.target.value;
+                    // avoid leading zeros
+                    setQuantity(val.replace(/^0+(?=\d)/, ''));
+                  }}
+                  onBlur={() => {
+                    // clamp on blur to ensure we don't exceed stock
+                    if (!selectedProduct) return;
+                    const v = Number.parseInt(quantity || '0', 10);
+                    if (Number.isNaN(v) || v < 1) setQuantity('1');
+                    else if (v > maxQuantity) setQuantity(String(maxQuantity));
+                  }}
                   disabled={!selectedProduct}
                   required
                 />
                 {selectedProduct && (
-                  <p className="text-xs text-muted-foreground">Max: {maxQuantity}</p>
+                  <p className={`text-xs ${quantityNum > maxQuantity ? 'text-destructive' : 'text-muted-foreground'}`}>
+                    Max: {maxQuantity}{quantityNum > maxQuantity ? ' — exceeds stock' : ''}
+                  </p>
                 )}
               </div>
 

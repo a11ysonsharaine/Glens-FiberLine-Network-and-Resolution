@@ -245,3 +245,38 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
     monthlySales: 0,
   } as any;
 };
+
+  export const deleteSale = async (saleId: string): Promise<boolean> => {
+    // Remove a sale and restore product quantity atomically where possible.
+    // This implementation performs steps sequentially via the client; for
+    // stronger guarantees create a DB-side RPC that performs the operations
+    // inside a transaction.
+    try {
+      // fetch sale
+      const { data: saleData, error: saleErr } = await supabase.from<any>('sales').select('*').eq('id', saleId).single();
+      if (saleErr) throw saleErr;
+      if (!saleData) return false;
+
+      const productId = saleData.product_id;
+      const qty = Number(saleData.quantity ?? 0);
+
+      // increment product quantity
+      const { data: prodData, error: prodErr } = await supabase.from<any>('products').select('id,quantity').eq('id', productId).single();
+      if (prodErr) throw prodErr;
+      if (!prodData) throw new Error('Associated product not found');
+
+      const newQty = Number(prodData.quantity ?? 0) + qty;
+      const { error: updErr } = await supabase.from('products').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', productId);
+      if (updErr) throw updErr;
+
+      // delete sale
+      const { error: delErr } = await supabase.from('sales').delete().eq('id', saleId);
+      if (delErr) throw delErr;
+
+      return true;
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('deleteSale failed', e);
+      throw e;
+    }
+  };

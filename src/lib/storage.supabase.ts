@@ -260,6 +260,25 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
       const productId = saleData.product_id;
       const qty = Number(saleData.quantity ?? 0);
 
+      // Try DB-side transactional RPC first for atomic delete+restore (recommended).
+      try {
+        // eslint-disable-next-line no-console
+        console.debug('deleteSale: attempting RPC delete_sale_tx', { saleId });
+        const rpcResp = await supabase.rpc('delete_sale_tx', { p_sale_id: saleId });
+        // rpcResp may contain error/data depending on function
+        if ((rpcResp as any).error) {
+          // eslint-disable-next-line no-console
+          console.warn('deleteSale: RPC delete_sale_tx returned error, falling back', { saleId, error: (rpcResp as any).error });
+        } else {
+          // eslint-disable-next-line no-console
+          console.debug('deleteSale: RPC delete_sale_tx succeeded', { saleId, data: (rpcResp as any).data });
+          return true;
+        }
+      } catch (rpcEx) {
+        // eslint-disable-next-line no-console
+        console.warn('deleteSale: rpc call failed or not found, falling back to client-side flow', { saleId, error: rpcEx });
+      }
+
       // If the sale has no associated product id, attempt delete only
       if (!productId) {
         // eslint-disable-next-line no-console

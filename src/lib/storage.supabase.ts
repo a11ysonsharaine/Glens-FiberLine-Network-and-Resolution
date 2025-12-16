@@ -5,7 +5,7 @@ export const getProducts = async (): Promise<Product[]> => {
   const { data, error } = await supabase.from<any>('products').select('*').order('created_at', { ascending: false });
   if (error) throw error;
   return (data ?? []).map((p: any) => ({
-    id: p.id,
+    id: String(p.id),
     name: p.name,
     category: p.category,
     quantity: p.quantity,
@@ -49,7 +49,7 @@ export const addProduct = async (product: Omit<Product, 'id' | 'createdAt' | 'up
   if (error) throw error;
   const p = data as any;
   return {
-    id: p.id,
+    id: String(p.id),
     name: p.name,
     category: p.category,
     quantity: p.quantity,
@@ -82,7 +82,7 @@ export const updateProduct = async (id: string, patch: Partial<Product>): Promis
   if (error) throw error;
   const p = data as any;
   return {
-    id: p.id,
+    id: String(p.id),
     name: p.name,
     category: p.category,
     quantity: p.quantity,
@@ -108,8 +108,8 @@ export const getSales = async (): Promise<Sale[]> => {
   const { data, error } = await supabase.from<any>('sales').select('*').order('created_at', { ascending: false });
   if (error) throw error;
   return (data ?? []).map((s: any) => ({
-    id: s.id,
-    productId: s.product_id,
+    id: String(s.id),
+    productId: s.product_id != null ? String(s.product_id) : '',
     productName: s.product_name,
     quantity: s.quantity,
     unitPrice: Number(s.unit_price ?? 0),
@@ -144,8 +144,8 @@ export const addSale = async (sale: Omit<Sale, 'id' | 'createdAt'>): Promise<Sal
     console.debug('addSale RPC result', result);
     if (!result) return null;
     return {
-      id: result.id,
-      productId: result.productid ?? result.productId,
+      id: String(result.id),
+      productId: result.productid != null ? String(result.productid) : (result.productId != null ? String(result.productId) : ''),
       productName: sale.productName,
       quantity: result.quantity,
       unitPrice: result.unitprice ?? result.unitPrice,
@@ -180,8 +180,8 @@ export const addSale = async (sale: Omit<Sale, 'id' | 'createdAt'>): Promise<Sal
     if (saleErr) throw saleErr;
     const s = saleData as any;
     return {
-      id: s.id,
-      productId: s.product_id,
+      id: String(s.id),
+      productId: s.product_id != null ? String(s.product_id) : '',
       productName: s.product_name,
       quantity: s.quantity,
       unitPrice: Number(s.unit_price ?? 0),
@@ -259,6 +259,15 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
 
       const productId = saleData.product_id;
       const qty = Number(saleData.quantity ?? 0);
+
+      // If the sale has no associated product id, avoid querying products with `eq('id', null)`
+      if (!productId) {
+        // eslint-disable-next-line no-console
+        console.warn('deleteSale: sale has no associated product_id; deleting sale without restoring stock', { saleId });
+        const { error: delErr } = await supabase.from('sales').delete().eq('id', saleId);
+        if (delErr) throw delErr;
+        return true;
+      }
 
       // increment product quantity
       const { data: prodData, error: prodErr } = await supabase.from<any>('products').select('id,quantity').eq('id', productId).single();

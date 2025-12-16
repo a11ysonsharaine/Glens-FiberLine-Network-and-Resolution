@@ -15,6 +15,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 
 interface SaleFormProps {
@@ -53,9 +54,9 @@ export function SaleForm({ open, onClose, onSave, products }: SaleFormProps) {
     onSave({
       productId: selectedProduct.id,
       productName: selectedProduct.name,
-      quantity,
+      quantity: v,
       unitPrice: selectedProduct.sellingPrice,
-      totalAmount,
+      totalAmount: selectedProduct.sellingPrice * v,
       customerName: customerName || undefined,
     });
     onClose();
@@ -65,9 +66,10 @@ export function SaleForm({ open, onClose, onSave, products }: SaleFormProps) {
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
-          <DialogTitle>Record New Sale</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+            <DialogTitle>Record New Sale</DialogTitle>
+            <DialogDescription>Fill out the form to record a new sales transaction.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4 mt-4">
           <div className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="product">Product</Label>
@@ -160,7 +162,7 @@ export function SaleForm({ open, onClose, onSave, products }: SaleFormProps) {
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!selectedProduct || quantity > maxQuantity}>
+            <Button type="submit" disabled={!selectedProduct || quantityNum < 1 || quantityNum > maxQuantity}>
               Complete Sale
             </Button>
           </div>

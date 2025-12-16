@@ -53,9 +53,9 @@ export function SaleForm({ open, onClose, onSave, products }: SaleFormProps) {
     onSave({
       productId: selectedProduct.id,
       productName: selectedProduct.name,
-      quantity,
+      quantity: v,
       unitPrice: selectedProduct.sellingPrice,
-      totalAmount,
+      totalAmount: selectedProduct.sellingPrice * v,
       customerName: customerName || undefined,
     });
     onClose();
@@ -160,7 +160,7 @@ export function SaleForm({ open, onClose, onSave, products }: SaleFormProps) {
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!selectedProduct || quantity > maxQuantity}>
+            <Button type="submit" disabled={!selectedProduct || quantityNum < 1 || quantityNum > maxQuantity}>
               Complete Sale
             </Button>
           </div>

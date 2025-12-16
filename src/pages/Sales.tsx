@@ -62,7 +62,8 @@ const Sales = () => {
     setDeletingSaleId(saleId);
     try {
       await deleteSale(saleId);
-      // refresh products to reflect restored quantity
+      // refresh sales and products to reflect authoritative server state
+      setSales(await getSales());
       setProducts(await getProducts());
       toast({ title: 'Sale deleted', description: `Restored ${qty} units to inventory for ${productName}.` });
     } catch (err) {
@@ -224,6 +225,8 @@ const Sales = () => {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleDeleteSale(sale.id, sale.productName, sale.quantity)}
+                          disabled={deletingSaleId === sale.id}
+                          aria-busy={deletingSaleId === sale.id}
                         >
                           <Trash2 className="w-4 h-4 text-destructive" />
                         </Button>

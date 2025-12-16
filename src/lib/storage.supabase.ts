@@ -260,7 +260,7 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
       const productId = saleData.product_id;
       const qty = Number(saleData.quantity ?? 0);
 
-      // If the sale has no associated product id, avoid querying products with `eq('id', null)`
+      // If the sale has no associated product id, attempt delete only
       if (!productId) {
         // eslint-disable-next-line no-console
         console.warn('deleteSale: sale has no associated product_id; deleting sale without restoring stock', { saleId });
@@ -269,18 +269,33 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
         return true;
       }
 
-      // increment product quantity
-      const { data: prodData, error: prodErr } = await supabase.from<any>('products').select('id,quantity').eq('id', productId).single();
-      if (prodErr) throw prodErr;
-      if (!prodData) throw new Error('Associated product not found');
-
-      const newQty = Number(prodData.quantity ?? 0) + qty;
-      const { error: updErr } = await supabase.from('products').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', productId);
-      if (updErr) throw updErr;
-
-      // delete sale
+      // Delete sale first to avoid repeated inventory restores when delete fails
       const { error: delErr } = await supabase.from('sales').delete().eq('id', saleId);
-      if (delErr) throw delErr;
+      if (delErr) {
+        // eslint-disable-next-line no-console
+        console.error('deleteSale: failed to delete sale record, aborting inventory update', { saleId, error: delErr });
+        throw delErr;
+      }
+
+      // Now update/increment product quantity
+      try {
+        const { data: prodData, error: prodErr } = await supabase.from<any>('products').select('id,quantity').eq('id', productId).single();
+        if (prodErr) throw prodErr;
+        if (!prodData) {
+          // eslint-disable-next-line no-console
+          console.error('deleteSale: associated product not found for productId after sale delete', { saleId, productId });
+          return true; // sale deleted; nothing more to do
+        }
+        const newQty = Number(prodData.quantity ?? 0) + qty;
+        const { error: updErr } = await supabase.from('products').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', productId);
+        if (updErr) {
+          // eslint-disable-next-line no-console
+          console.error('deleteSale: sale deleted but failed to update product quantity', { saleId, productId, qty, error: updErr });
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('deleteSale: unexpected error while updating product quantity after sale deletion', { saleId, productId, error: e });
+      }
 
       return true;
     } catch (e) {
